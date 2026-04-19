@@ -1,18 +1,31 @@
-from pathlib import Path
+"""Модуль с общими функциями для загрузки изображений."""
 from os.path import split, splitext
-from urllib.parse import urlsplit, unquote
+from urllib.parse import unquote, urlsplit
+
 import requests
+from pathlib import Path
 
 
 def add_common_args(parser):
-    """Добавляет общие аргументы для скриптов загрузки изображений."""
+    """Добавляет общие аргументы для скриптов загрузки изображений.
+
+    Args:
+        parser (ArgumentParser): Парсер для добавления аргументов.
+
+    Returns:
+        ArgumentParser: Парсер с добавленными аргументами.
+    """
     parser.add_argument(
-        '-n', '--name',
-        help=('Имя файла (без расширения).'
-              'По умолчанию извлекается из URL')
+        '-n',
+        '--name',
+        help=(
+            'Имя файла (без расширения). '
+            'По умолчанию извлекается из URL'
+        )
     )
     parser.add_argument(
-        '-p', '--path',
+        '-p',
+        '--path',
         default='images',
         help='Папка для сохранения (по умолчанию images)'
     )
@@ -20,13 +33,13 @@ def add_common_args(parser):
 
 
 def get_filename(url):
-    """Берет из ссылок расширение...
+    """Извлекает имя и расширение файла из URL.
 
     Args:
         url (str): Адрес картинки в интернете.
 
     Returns:
-        str: Расширение файла (jpeg, gif и т.д.).
+        tuple: Кортеж (имя_файла, расширение).
     """
     path, filename = split(unquote(urlsplit(url).path))
     name_image, extension = splitext(filename)
@@ -38,14 +51,13 @@ def get_filename(url):
 def ensure_list(some_links):
     """Приводит значение к списку для универсальной итерации.
 
-    Делает из любого количества ссылок полученных от запроса - список
+    Делает из любого количества ссылок, полученных от запроса, список.
 
     Args:
         some_links: Необработанные ответы от других функций.
 
     Returns:
-        list: Список ссылок даже если там одна ссылка,
-        или пустой список.
+        list: Список ссылок (даже если одна ссылка) или пустой список.
     """
     if some_links is None:
         return []
@@ -70,13 +82,13 @@ def download_image(
         name_image (str): Название изображения.
         path (str): Папка для сохранения (будет создана, если нет).
         number_image (int, optional): Номер изображения для сохранения
-            (если изображение одно то сохранится по названию если,
-             их несколько то название_1 и т.д.).
+            (если изображение одно, то сохранится по названию, если
+            их несколько, то название_1 и т.д.).
         headers (dict, optional): Заголовки HTTP (если None,
-         используется стандартный User-Agent).
+            используется стандартный User-Agent).
 
     Returns:
-        Path: Путь к сохраненному файлу.
+        Path: Путь к сохранённому файлу.
     """
     if headers is None:
         headers = {
