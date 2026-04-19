@@ -40,7 +40,7 @@ def get_comic_xkcd(xkcd_num):
         requests.exceptions.HTTPError: Если комикс не найден.
     """
     url = f'https://xkcd.com/{xkcd_num}/info.0.json'
-    response = requests.get(url)
+    response = requests.get(url, timeout=30)
     response.raise_for_status()
     return response.json()
 
@@ -52,7 +52,7 @@ def get_latest_comic_num():
         int: Номер последнего комикса.
     """
     url = 'https://xkcd.com/info.0.json'
-    response = requests.get(url)
+    response = requests.get(url, timeout=30)
     response.raise_for_status()
     return response.json()['num']
 

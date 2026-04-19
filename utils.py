@@ -115,7 +115,7 @@ def download_image(
     else:
         full_path = folder_path / f'{final_name}_{number_image}{extension}'
 
-    response = requests.get(url, headers=headers)
+    response = requests.get(url, headers=headers, timeout=60)
     response.raise_for_status()
     full_path.write_bytes(response.content)
     return full_path
