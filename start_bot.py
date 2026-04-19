@@ -108,7 +108,6 @@ def main():
 
     bot = Bot(token=token)
 
-    # Получение комикса
     if args.xkcd is None:
         comic_num = get_latest_comic_num()
         comic_info = get_comic_xkcd(comic_num)
@@ -122,21 +121,17 @@ def main():
         comic_num = args.xkcd
         print(f'Публикуем комикс #{comic_num}')
 
-    # Скачивание
     image_path = download_image(
         comic_info['img'],
         path=images_folder
     )
     print(f'Комикс сохранён: {image_path}')
 
-    # Публикация
     send_bot(bot, channel_id, image_path, comic_info.get('alt', ''))
     time.sleep(sleep_seconds)
 
-    # Бесконечный цикл
     try:
         while True:
-            # Следующий комикс
             next_comic_info = get_random_comic()
             next_image_path = download_image(
                 next_comic_info['img'],
