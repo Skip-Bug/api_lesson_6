@@ -1,9 +1,12 @@
 """Модуль для запуска Telegram-бота с комиксами xkcd."""
 import argparse
 import os
+from pathlib import Path
+import sys
 import time
 
 from dotenv import load_dotenv
+import requests
 from telegram import Bot
 from telegram.error import BadRequest, NetworkError, TimedOut, Unauthorized
 
@@ -107,28 +110,34 @@ def main():
     os.makedirs(images_folder, exist_ok=True)
 
     bot = Bot(token=token)
+    try:
+        if args.xkcd is None:
+            comic_num = get_latest_comic_num()
+            comic_info = get_comic_xkcd(comic_num)
+            print(f'Публикуем последний комикс #{comic_num}')
+        elif args.xkcd == 0:
+            comic_info = get_random_comic()
+            comic_num = comic_info['num']
+            print(f'Публикуем случайный комикс #{comic_num}')
+        else:
+            comic_info = get_comic_xkcd(args.xkcd)
+            comic_num = args.xkcd
+            print(f'Публикуем комикс #{comic_num}')
+    except requests.exceptions.RequestException as e:
+        sys.exit(f'Ошибка сети при скачивании комикса: {e}')
 
-    if args.xkcd is None:
-        comic_num = get_latest_comic_num()
-        comic_info = get_comic_xkcd(comic_num)
-        print(f'Публикуем последний комикс #{comic_num}')
-    elif args.xkcd == 0:
-        comic_info = get_random_comic()
-        comic_num = comic_info['num']
-        print(f'Публикуем случайный комикс #{comic_num}')
-    else:
-        comic_info = get_comic_xkcd(args.xkcd)
-        comic_num = args.xkcd
-        print(f'Публикуем комикс #{comic_num}')
-
-    image_path = download_image(
-        comic_info['img'],
-        path=images_folder
-    )
-    print(f'Комикс сохранён: {image_path}')
-
-    send_bot(bot, channel_id, image_path, comic_info.get('alt', ''))
-    time.sleep(sleep_seconds)
+    try:
+        image_path = download_image(comic_info['img'], path=images_folder)
+        print(f'Комикс сохранён: {image_path}')
+        if send_bot(bot, channel_id, image_path, comic_info.get('alt', '')):
+            # удаляем после успешной отправки
+            Path(image_path).unlink(missing_ok=True)
+            print(f'Файл {image_path} удалён.')
+        else:
+            print('Не удалось отправить первый комикс.')
+    except requests.exceptions.RequestException as e:
+        print(f'Ошибка при обработке первого комикса: {e}')
+        return
 
     try:
         while True:
@@ -139,12 +148,16 @@ def main():
             )
             print(f'Публикуем комикс #{next_comic_info["num"]}')
 
-            send_bot(
+            if send_bot(
                 bot,
                 channel_id,
                 next_image_path,
                 next_comic_info.get('alt', '')
-            )
+            ):
+                Path(next_image_path).unlink(missing_ok=True)
+                print(f'Файл {next_image_path} удалён.')
+            else:
+                print('Не удалось отправить комикс.')
             time.sleep(sleep_seconds)
 
     except KeyboardInterrupt:

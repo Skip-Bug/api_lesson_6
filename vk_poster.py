@@ -2,6 +2,7 @@
 import argparse
 import os
 import sys
+from pathlib import Path
 
 import requests
 from dotenv import load_dotenv
@@ -166,6 +167,8 @@ def main():
         v
     )
     print(f'Пост опубликован! ID: {post_id}')
+    Path(image_path).unlink(missing_ok=True)
+    print(f"Файл {image_path} удалён после публикации.")
 
 
 if __name__ == '__main__':
