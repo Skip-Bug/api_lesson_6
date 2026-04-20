@@ -160,15 +160,12 @@ def main():
     except requests.exceptions.RequestException as e:
         print(f'Ошибка получения комикса: {e}')
         return
+    image_path = None
 
     try:
         image_path = download_image(comic_info['img'])
         print(f'Комикс сохранён: {image_path}')
-    except requests.exceptions.RequestException as e:
-        print(f'Ошибка скачивания комикса: {e}')
-        return
 
-    try:
         upload_url = get_upload_url(token=token, group_id=group_id, v=v)
         upload_data = upload_photo(
             image_path=image_path,
@@ -190,12 +187,11 @@ def main():
 
         print(f'Пост опубликован! ID: {post_id}')
     except requests.exceptions.RequestException as e:
-        print(f'Ошибка публикации в VK: {e}')
-        Path(image_path).unlink(missing_ok=True)
-        return
+        print(f'Ошибка сети: {e}')
 
-    Path(image_path).unlink(missing_ok=True)
-    print(f'Файл {image_path} удалён.')
+    finally:
+        Path(image_path).unlink(missing_ok=True)
+        print(f'Файл {image_path} удалён.')
 
 
 if __name__ == '__main__':
