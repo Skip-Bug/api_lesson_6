@@ -160,8 +160,8 @@ def main():
     except requests.exceptions.RequestException as e:
         print(f'Ошибка получения комикса: {e}')
         return
-    image_path = None
 
+    image_path = None
     try:
         image_path = download_image(comic_info['img'])
         print(f'Комикс сохранён: {image_path}')
@@ -190,8 +190,9 @@ def main():
         print(f'Ошибка сети: {e}')
 
     finally:
-        Path(image_path).unlink(missing_ok=True)
-        print(f'Файл {image_path} удалён.')
+        if image_path:
+            Path(image_path).unlink(missing_ok=True)
+            print(f'Файл {image_path} удалён.')
 
 
 if __name__ == '__main__':
