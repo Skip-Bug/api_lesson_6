@@ -33,7 +33,7 @@ def send_bot(bot, channel_id, image_path, caption='Привет от Бота!')
                 photo=image_file,
                 caption=caption
             )
-        print(f'Отправлено: {os.path.basename(image_path)}')
+        print(f'Отправлено: {Path(image_path).name}')
         return True
     except FileNotFoundError:
         print(f'Файл не найден: {image_path}')
@@ -53,7 +53,7 @@ def create_parser():
     """Создаёт парсер аргументов для бота.
 
     Returns:
-        ArgumentParser: Парсер с аргументами -x, -s, -p.
+        ArgumentParser: Парсер с аргументами -x, -s.
     """
     parser = argparse.ArgumentParser(
         description='Запускает бота с задержкой публикаций'
@@ -70,12 +70,6 @@ def create_parser():
         type=int,
         default=14400,
         help='Задержка публикаций (по умолчанию 4 часа)'
-    )
-    parser.add_argument(
-        '-p',
-        '--path',
-        default='images',
-        help='Папка для сохранения (по умолчанию images)'
     )
     return parser
 
@@ -104,10 +98,7 @@ def main():
     parser = create_parser()
     args = parser.parse_args()
 
-    images_folder = args.path
     sleep_seconds = args.sleep
-
-    os.makedirs(images_folder, exist_ok=True)
 
     bot = Bot(token=token)
     try:
@@ -127,14 +118,14 @@ def main():
         sys.exit(f'Ошибка сети при скачивании комикса: {e}')
 
     try:
-        image_path = download_image(comic_info['img'], path=images_folder)
+        image_path = download_image(comic_info['img'])
         print(f'Комикс сохранён: {image_path}')
         if send_bot(bot, channel_id, image_path, comic_info.get('alt', '')):
-            # удаляем после успешной отправки
-            Path(image_path).unlink(missing_ok=True)
-            print(f'Файл {image_path} удалён.')
+            print('Файл отправлен.')
         else:
             print('Не удалось отправить первый комикс.')
+        Path(image_path).unlink(missing_ok=True)
+        print(f'Файл {image_path} удалён.')
     except requests.exceptions.RequestException as e:
         print(f'Ошибка при обработке первого комикса: {e}')
         return
@@ -142,10 +133,7 @@ def main():
     try:
         while True:
             next_comic_info = get_random_comic()
-            next_image_path = download_image(
-                next_comic_info['img'],
-                path=images_folder
-            )
+            next_image_path = download_image(next_comic_info['img'])
             print(f'Публикуем комикс #{next_comic_info["num"]}')
 
             if send_bot(
@@ -154,10 +142,11 @@ def main():
                 next_image_path,
                 next_comic_info.get('alt', '')
             ):
-                Path(next_image_path).unlink(missing_ok=True)
-                print(f'Файл {next_image_path} удалён.')
+                print('Комикс отправлен.')
             else:
                 print('Не удалось отправить комикс.')
+            Path(next_image_path).unlink(missing_ok=True)
+            print(f'Файл {next_image_path} удалён.')
             time.sleep(sleep_seconds)
 
     except KeyboardInterrupt:
