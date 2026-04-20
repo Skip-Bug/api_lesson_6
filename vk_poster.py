@@ -1,7 +1,6 @@
 """Модуль для публикации комиксов xkcd в ВКонтакте."""
 import argparse
 import os
-import sys
 from pathlib import Path
 
 import requests
@@ -15,7 +14,7 @@ def create_parser():
     """Создаёт парсер аргументов для vk_poster.
 
     Returns:
-        ArgumentParser: Парсер с аргументами -x и -p.
+        ArgumentParser: Парсер с аргументом -x.
     """
     parser = argparse.ArgumentParser(description='Публикует комикс xkcd в VK')
     parser.add_argument(
@@ -24,108 +23,109 @@ def create_parser():
         type=int,
         help='Номер (пусто - последний, 0 - случайный)'
     )
-    parser.add_argument(
-        '-p',
-        '--path',
-        default='images',
-        help='Папка для комиксов'
-    )
     return parser
 
 
-def vk_api_request(method, params, token, v):
-    """Запрос к VK API.
-
-    При ошибке сети или невалидном ключе завершает программу.
+def get_upload_url(token, group_id, v):
+    """Получает URL для загрузки фото на стену.
 
     Args:
-        method (str): Метод API.
-        params (dict): Параметры запроса.
-        token (str): Токен доступа VK.
-        v (str): Версия API.
-
-    Returns:
-        dict: Ответ от API (response).
-
-    Raises:
-        SystemExit: При сетевой ошибке или ошибке VK API.
-    """
-    params.update({'access_token': token, 'v': v})
-    try:
-        resp = requests.get(
-            f'https://api.vk.com/method/{method}',
-            params=params,
-            timeout=30
-        )
-        resp.raise_for_status()
-    except requests.exceptions.RequestException as e:
-        sys.exit(f'Сетевая ошибка VK: {e}')
-
-    data = resp.json()
-    if 'error' in data:
-        code = data['error']['error_code']
-        msg = data['error']['error_msg']
-        if code == 5:
-            sys.exit(
-                'Ошибка VK: неверный access_token. Проверьте VK_KEY в .env'
-            )
-        sys.exit(f'Ошибка VK API {code}: {msg}')
-    return data['response']
-
-
-def post_photo_to_wall(image_path, message, token, group_id, v):
-    """Загружает фото на стену группы и публикует пост.
-
-    Args:
-        image_path (Path): Путь к изображению.
-        message (str): Текст поста.
         token (str): Токен доступа VK.
         group_id (str): ID группы.
         v (str): Версия API.
 
     Returns:
-        int: ID опубликованного поста.
+        str: URL для загрузки фото.
     """
-    upload_server = vk_api_request(
-        'photos.getWallUploadServer',
-        {'group_id': group_id},
-        token,
-        v
+    resp = requests.get(
+        'https://api.vk.com/method/photos.getWallUploadServer',
+        params={'access_token': token, 'v': v, 'group_id': group_id},
+        timeout=30
     )
-    upload_url = upload_server['upload_url']
+    resp.raise_for_status()
+    return resp.json()['response']['upload_url']
 
+
+def upload_photo(image_path, upload_url):
+    """Загружает фото на сервер VK.
+
+    Args:
+        image_path (Path): Путь к изображению.
+        upload_url (str): URL для загрузки.
+
+    Returns:
+        dict: Данные загруженного фото.
+    """
     with open(image_path, 'rb') as f:
-        upload_data = requests.post(
+        resp = requests.post(
             upload_url,
             files={'photo': f},
             timeout=60
-        ).json()
+        )
+        resp.raise_for_status()
+        return resp.json()
 
-    saved = vk_api_request(
-        'photos.saveWallPhoto',
-        {
-            'group_id': group_id,
-            'photo': upload_data['photo'],
-            'server': upload_data['server'],
-            'hash': upload_data['hash']
-        },
-        token,
-        v
-    )[0]
 
-    attachment = f"photo{saved['owner_id']}_{saved['id']}"
-    post = vk_api_request(
-        'wall.post',
-        {
-            'owner_id': f'-{group_id}',
-            'from_group': 1,
-            'message': message,
-            'attachments': attachment
-        },
-        token,
-        v
+def save_photo(token, group_id, v, upload_data):
+    """Сохраняет загруженное фото в альбом группы.
+
+    VK API требует сохранить фото после загрузки.
+
+    Args:
+        token (str): Токен доступа VK.
+        group_id (str): ID группы.
+        v (str): Версия API.
+        upload_data (dict): Данные от upload_photo.
+
+    Returns:
+        dict: Сохранённое фото.
+    """
+    params = {
+        'access_token': token,
+        'v': v,
+        'group_id': group_id,
+        'photo': upload_data['photo'],
+        'server': upload_data['server'],
+        'hash': upload_data['hash']
+    }
+    resp = requests.get(
+        'https://api.vk.com/method/photos.saveWallPhoto',
+        params=params,
+        timeout=30
     )
-    return post['post_id']
+    resp.raise_for_status()
+    return resp.json()['response'][0]
+
+
+def create_post(token, group_id, v, saved_photo, message):
+    """Публикует пост с фото на стене группы.
+
+    Args:
+        token (str): Токен доступа VK.
+        group_id (str): ID группы.
+        v (str): Версия API.
+        saved_photo (dict): Данные сохранённого фото.
+        message (str): Текст поста.
+
+    Returns:
+        int: ID опубликованного поста.
+    """
+    attachment = f"photo{saved_photo['owner_id']}_{saved_photo['id']}"
+    params = {
+        'access_token': token,
+        'v': v,
+        'owner_id': f'-{group_id}',
+        'from_group': 1,
+        'message': message,
+        'attachments': attachment
+    }
+    resp = requests.get(
+        'https://api.vk.com/method/wall.post',
+        params=params,
+        timeout=30
+    )
+    resp.raise_for_status()
+    return resp.json()['response']['post_id']
 
 
 def main():
@@ -140,35 +140,62 @@ def main():
     v = '5.131'
 
     if not token or not group_id:
-        sys.exit('Ошибка: VK_KEY или GROUP_ID не найдены в .env')
+        print('Ошибка: VK_KEY или GROUP_ID не найдены в .env')
+        return
 
-    args = create_parser().parse_args()
-    os.makedirs(args.path, exist_ok=True)
+    parser = create_parser()
+    args = parser.parse_args()
 
-    if args.xkcd is None:
-        comic_num = get_latest_comic_num()
-        comic_info = get_comic_xkcd(comic_num)
-        print(f'Публикуем последний комикс #{comic_num}')
-    elif args.xkcd == 0:
-        comic_info = get_random_comic()
-        print(f'Публикуем случайный комикс #{comic_info["num"]}')
-    else:
-        comic_info = get_comic_xkcd(args.xkcd)
-        print(f'Публикуем комикс #{args.xkcd}')
+    try:
+        if args.xkcd is None:
+            comic_num = get_latest_comic_num()
+            comic_info = get_comic_xkcd(comic_num)
+            print(f'Публикуем последний комикс #{comic_num}')
+        elif args.xkcd == 0:
+            comic_info = get_random_comic()
+            print(f'Публикуем случайный комикс #{comic_info["num"]}')
+        else:
+            comic_info = get_comic_xkcd(args.xkcd)
+            print(f'Публикуем комикс #{args.xkcd}')
+    except requests.exceptions.RequestException as e:
+        print(f'Ошибка получения комикса: {e}')
+        return
 
-    image_path = download_image(comic_info['img'], path=args.path)
-    print(f'Комикс сохранён: {image_path}')
+    try:
+        image_path = download_image(comic_info['img'])
+        print(f'Комикс сохранён: {image_path}')
+    except requests.exceptions.RequestException as e:
+        print(f'Ошибка скачивания комикса: {e}')
+        return
 
-    post_id = post_photo_to_wall(
-        image_path,
-        comic_info.get('alt', ''),
-        token,
-        group_id,
-        v
-    )
-    print(f'Пост опубликован! ID: {post_id}')
+    try:
+        upload_url = get_upload_url(token=token, group_id=group_id, v=v)
+        upload_data = upload_photo(
+            image_path=image_path,
+            upload_url=upload_url
+        )
+        saved_photo = save_photo(
+            token=token,
+            group_id=group_id,
+            v=v,
+            upload_data=upload_data
+        )
+        post_id = create_post(
+            token=token,
+            group_id=group_id,
+            v=v,
+            saved_photo=saved_photo,
+            message=comic_info.get('alt', '')
+        )
+
+        print(f'Пост опубликован! ID: {post_id}')
+    except requests.exceptions.RequestException as e:
+        print(f'Ошибка публикации в VK: {e}')
+        Path(image_path).unlink(missing_ok=True)
+        return
+
     Path(image_path).unlink(missing_ok=True)
-    print(f"Файл {image_path} удалён после публикации.")
+    print(f'Файл {image_path} удалён.')
 
 
 if __name__ == '__main__':
