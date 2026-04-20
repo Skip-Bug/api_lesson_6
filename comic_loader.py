@@ -4,14 +4,14 @@ import random
 
 import requests
 
-from utils import add_common_args, download_image
+from utils import download_image
 
 
 def create_parser():
     """Создаёт парсер аргументов для comic_loader.
 
     Returns:
-        ArgumentParser: Парсер с аргументами -x, -n, -p.
+        ArgumentParser: Парсер с аргументами -x, -p.
     """
     parser = argparse.ArgumentParser(
         description='Скачивает комиксы с xkcd.com'
@@ -23,7 +23,12 @@ def create_parser():
         default=None,
         help='Номер комикса. Если не указан — последний, 0 — случайный.'
     )
-    add_common_args(parser)
+    parser.add_argument(
+        '-p',
+        '--path',
+        default='images',
+        help='Папка для сохранения (по умолчанию images)'
+    )
     return parser
 
 
@@ -78,7 +83,6 @@ def main():
     parser = create_parser()
     args = parser.parse_args()
 
-    name_image = args.name.strip().lower() if args.name else None
     path = args.path.strip() if args.path else 'images/'
 
     try:
@@ -102,7 +106,7 @@ def main():
         return
 
     try:
-        saved_path = download_image(comic_link, name_image, path)
+        saved_path = download_image(comic_link, path)
         print(f'Файл сохранён: {saved_path}')
         print(f'{comic_info["alt"]}')
     except requests.exceptions.ReadTimeout:
