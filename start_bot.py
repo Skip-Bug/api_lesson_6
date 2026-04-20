@@ -121,14 +121,15 @@ def main():
         image_path = download_image(comic_info['img'])
         print(f'Комикс сохранён: {image_path}')
         if send_bot(bot, channel_id, image_path, comic_info.get('alt', '')):
-            print('Файл отправлен.')
+            print('Комикс отправлен.')
         else:
             print('Не удалось отправить первый комикс.')
-        Path(image_path).unlink(missing_ok=True)
-        print(f'Файл {image_path} удалён.')
     except requests.exceptions.RequestException as e:
         print(f'Ошибка при обработке первого комикса: {e}')
         return
+    finally:
+        Path(image_path).unlink(missing_ok=True)
+        print(f'Файл {image_path} удалён.')
 
     try:
         while True:
