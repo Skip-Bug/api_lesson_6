@@ -1,29 +1,12 @@
 """Модуль для публикации комиксов xkcd в ВКонтакте."""
-import argparse
 import os
 from pathlib import Path
 
 import requests
 from dotenv import load_dotenv
 
-from comic_loader import get_comic_xkcd, get_latest_comic_num, get_random_comic
+from comic_loader import get_random_comic
 from utils import download_image
-
-
-def create_parser():
-    """Создаёт парсер аргументов для vk_poster.
-
-    Returns:
-        ArgumentParser: Парсер с аргументом -x.
-    """
-    parser = argparse.ArgumentParser(description='Публикует комикс xkcd в VK')
-    parser.add_argument(
-        '-x',
-        '--xkcd',
-        type=int,
-        help='Номер (пусто - последний, 0 - случайный)'
-    )
-    return parser
 
 
 def get_upload_url(token, group_id, v):
@@ -37,13 +20,13 @@ def get_upload_url(token, group_id, v):
     Returns:
         str: URL для загрузки фото.
     """
-    resp = requests.get(
+    response = requests.get(
         'https://api.vk.com/method/photos.getWallUploadServer',
         params={'access_token': token, 'v': v, 'group_id': group_id},
         timeout=30
     )
-    resp.raise_for_status()
-    return resp.json()['response']['upload_url']
+    response.raise_for_status()
+    return response.json()['response']['upload_url']
 
 
 def upload_photo(image_path, upload_url):
@@ -57,13 +40,13 @@ def upload_photo(image_path, upload_url):
         dict: Данные загруженного фото.
     """
     with open(image_path, 'rb') as f:
-        resp = requests.post(
+        response = requests.post(
             upload_url,
             files={'photo': f},
             timeout=60
         )
-        resp.raise_for_status()
-        return resp.json()
+        response.raise_for_status()
+        return response.json()
 
 
 def save_photo(token, group_id, v, upload_data):
@@ -88,13 +71,13 @@ def save_photo(token, group_id, v, upload_data):
         'server': upload_data['server'],
         'hash': upload_data['hash']
     }
-    resp = requests.get(
+    response = requests.get(
         'https://api.vk.com/method/photos.saveWallPhoto',
         params=params,
         timeout=30
     )
-    resp.raise_for_status()
-    return resp.json()['response'][0]
+    response.raise_for_status()
+    return response.json()['response'][0]
 
 
 def create_post(token, group_id, v, saved_photo, message):
@@ -119,13 +102,13 @@ def create_post(token, group_id, v, saved_photo, message):
         'message': message,
         'attachments': attachment
     }
-    resp = requests.get(
+    response = requests.get(
         'https://api.vk.com/method/wall.post',
         params=params,
         timeout=30
     )
-    resp.raise_for_status()
-    return resp.json()['response']['post_id']
+    response.raise_for_status()
+    return response.json()['response']['post_id']
 
 
 def main():
@@ -143,20 +126,9 @@ def main():
         print('Ошибка: VK_KEY или GROUP_ID не найдены в .env')
         return
 
-    parser = create_parser()
-    args = parser.parse_args()
-
     try:
-        if args.xkcd is None:
-            comic_num = get_latest_comic_num()
-            comic_info = get_comic_xkcd(comic_num)
-            print(f'Публикуем последний комикс #{comic_num}')
-        elif args.xkcd == 0:
-            comic_info = get_random_comic()
-            print(f'Публикуем случайный комикс #{comic_info["num"]}')
-        else:
-            comic_info = get_comic_xkcd(args.xkcd)
-            print(f'Публикуем комикс #{args.xkcd}')
+        comic_info = get_random_comic()
+        print(f'Публикуем случайный комикс #{comic_info["num"]}')
     except requests.exceptions.RequestException as e:
         print(f'Ошибка получения комикса: {e}')
         return
